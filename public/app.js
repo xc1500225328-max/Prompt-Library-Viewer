@@ -9,6 +9,13 @@ const state = {
   selectedItem: null,
 };
 
+window.onerror = function(message, source, lineno, colno, error) {
+  alert(`Global Error: ${message}\nLine: ${lineno}\nError: ${error?.message}`);
+};
+window.addEventListener('unhandledrejection', function(event) {
+  alert(`Unhandled Promise Rejection: ${event.reason}`);
+});
+
 const elements = {
   statusText: document.querySelector("#statusText"),
   refreshButton: document.querySelector("#refreshButton"),
@@ -331,9 +338,10 @@ function render() {
 async function loadPrompts({ refresh = false } = {}) {
   elements.refreshButton.disabled = true;
   elements.statusText.textContent = refresh ? "正在刷新 GitHub Markdown..." : "正在载入提示词库...";
+  try {
     let data;
-    if (typeof window.__TAURI__ !== "undefined") {
-      data = await window.__TAURI__.core.invoke("get_prompts", { refresh });
+    if (checkIsTauri()) {
+      data = await tauriInvoke("get_prompts", { refresh });
     } else {
       const response = await fetch(`/api/prompts${refresh ? "?refresh=1" : ""}`);
       if (!response.ok) {
@@ -395,35 +403,62 @@ elements.dialog.addEventListener("click", (event) => {
   }
 });
 
+// 辅助函数：安全的 Tauri invoke
+function tauriInvoke(cmd, args) {
+  if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
+    return window.__TAURI__.core.invoke(cmd, args);
+  } else if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) {
+    return window.__TAURI_INTERNALS__.invoke(cmd, args);
+  }
+  return Promise.reject(new Error("Tauri IPC not found"));
+}
+
+function checkIsTauri() {
+  return typeof window.__TAURI__ !== "undefined" || typeof window.__TAURI_INTERNALS__ !== "undefined";
+}
+
 // 检测运行环境并标记 body 样式类
-const userAgent = navigator.userAgent.toLowerCase();
-const isTauri = typeof window.__TAURI__ !== "undefined";
-const isElectron = userAgent.includes("electron");
+function detectEnvironment() {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const isElectron = userAgent.includes("electron");
+  const isTauri = checkIsTauri();
 
-if (isElectron) {
-  document.body.classList.add("is-electron");
-} else if (isTauri) {
-  document.body.classList.add("is-tauri");
+  if (isElectron) {
+    document.body.classList.add("is-electron");
+  } else if (isTauri) {
+    document.body.classList.add("is-tauri");
+  }
+
+  if (userAgent.includes("macintosh") || userAgent.includes("mac os x")) {
+    document.body.classList.add("is-mac");
+  }
+
+  // 如果在 Tauri 环境中，绑定自定义窗口控制事件
+  if (isTauri) {
+    document.querySelector("#winMinimize")?.addEventListener("click", () => {
+      tauriInvoke('minimize_window');
+    });
+    document.querySelector("#winMaximize")?.addEventListener("click", () => {
+      tauriInvoke('maximize_window');
+    });
+    document.querySelector("#winClose")?.addEventListener("click", () => {
+      tauriInvoke('close_window');
+    });
+
+    // 监听拖动区域
+    document.addEventListener("mousedown", (e) => {
+      if (e.target.hasAttribute("data-custom-drag")) {
+        // 遇到拖拽区域时，通知 Tauri 开始原生拖拽
+        tauriInvoke('start_dragging').catch(err => {
+            console.error("Drag failed:", err);
+        });
+      }
+    });
+  }
 }
 
-if (userAgent.includes("macintosh") || userAgent.includes("mac os x")) {
-  document.body.classList.add("is-mac");
-}
-
-// 如果在 Tauri 环境中，绑定自定义窗口控制事件
-if (isTauri) {
-  const { getCurrentWindow } = window.__TAURI__.window;
-  const appWindow = getCurrentWindow();
-  
-  document.querySelector("#winMinimize")?.addEventListener("click", () => {
-    appWindow.minimize();
-  });
-  document.querySelector("#winMaximize")?.addEventListener("click", () => {
-    appWindow.toggleMaximize();
-  });
-  document.querySelector("#winClose")?.addEventListener("click", () => {
-    appWindow.close();
-  });
-}
-
-loadPrompts();
+// 在加载数据前执行环境检测（避免脚本加载时机问题导致丢失全局变量）
+setTimeout(() => {
+  detectEnvironment();
+  loadPrompts();
+}, 100);

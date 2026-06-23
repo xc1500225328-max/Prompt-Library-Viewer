@@ -349,6 +349,43 @@ fn normalize_line_endings(s: &str) -> String {
     s.replace("\r\n", "\n").replace('\r', "\n")
 }
 
+fn previous_char_boundary(s: &str, mut index: usize) -> usize {
+    index = index.min(s.len());
+    while index > 0 && !s.is_char_boundary(index) {
+        index -= 1;
+    }
+    index
+}
+
+fn slice_before_char_boundary(s: &str, end: usize, max_bytes: usize) -> &str {
+    let safe_end = previous_char_boundary(s, end);
+    let safe_start = previous_char_boundary(s, safe_end.saturating_sub(max_bytes));
+    &s[safe_start..safe_end]
+}
+
+fn prefix_len_bytes<F>(s: &str, mut predicate: F) -> usize
+where
+    F: FnMut(char) -> bool,
+{
+    let mut end = 0;
+    for (idx, ch) in s.char_indices() {
+        if !predicate(ch) {
+            break;
+        }
+        end = idx + ch.len_utf8();
+    }
+    end
+}
+
+fn title_prefix_separator_len(s: &str) -> Option<usize> {
+    let ch = s.chars().next()?;
+    if matches!(ch, ':' | '：' | '.' | '-' | '·' | '路') {
+        Some(ch.len_utf8())
+    } else {
+        None
+    }
+}
+
 fn clean_markdown_text(s: &str) -> String {
     let mut result = s.to_string();
     
@@ -418,34 +455,26 @@ fn clean_title(raw_title: &str) -> String {
     
     if temp.starts_with("case") {
         let skip_case = &temp["case".len()..];
-        let digits_len = skip_case.chars().take_while(|c| c.is_ascii_digit() || c.is_whitespace()).count();
+        let digits_len = prefix_len_bytes(skip_case, |c| c.is_ascii_digit() || c.is_whitespace());
         let after_digits = &skip_case[digits_len..];
-        if after_digits.starts_with(':') || after_digits.starts_with('.') || after_digits.starts_with('-') || after_digits.starts_with('·') {
-            offset = "case".len() + digits_len + 1;
-        } else if after_digits.starts_with("：") {
-            offset = "case".len() + digits_len + 3; // "：".len_utf8() == 3
+        if let Some(sep_len) = title_prefix_separator_len(after_digits) {
+            offset = "case".len() + digits_len + sep_len;
         }
     } else if temp.starts_with("no") {
         let skip_no = &temp["no".len()..];
         let skip_dot = if skip_no.starts_with('.') { &skip_no[1..] } else { skip_no };
-        let digits_len = skip_dot.chars().take_while(|c| c.is_ascii_digit() || c.is_whitespace()).count();
+        let digits_len = prefix_len_bytes(skip_dot, |c| c.is_ascii_digit() || c.is_whitespace());
         let after_digits = &skip_dot[digits_len..];
-        if after_digits.starts_with(':') || after_digits.starts_with('.') || after_digits.starts_with('-') || after_digits.starts_with('·') {
-            offset = cleaned.len() - after_digits.len() + 1;
-        } else if after_digits.starts_with("：") {
-            offset = cleaned.len() - after_digits.len() + 3;
+        if let Some(sep_len) = title_prefix_separator_len(after_digits) {
+            offset = cleaned.len() - after_digits.len() + sep_len;
         }
     } else {
         // 数字开头，如 "01. " 或 "01: "
-        let digits_len = temp.chars().take_while(|c| c.is_ascii_digit() || c.is_whitespace()).count();
+        let digits_len = prefix_len_bytes(&temp, |c| c.is_ascii_digit() || c.is_whitespace());
         if digits_len > 0 {
             let after_digits = &temp[digits_len..];
-            if after_digits.starts_with('.') || after_digits.starts_with('-') || after_digits.starts_with('·') {
-                offset = digits_len + 1;
-            } else if after_digits.starts_with(':') {
-                offset = digits_len + 1;
-            } else if after_digits.starts_with("：") {
-                offset = digits_len + 3;
+            if let Some(sep_len) = title_prefix_separator_len(after_digits) {
+                offset = digits_len + sep_len;
             }
         }
     }
@@ -862,7 +891,7 @@ fn extract_size(content: &str, prompt: &str) -> String {
                 }
             }
         }
-        cursor = start_num + num1.len() + 1;
+        cursor = start_num + num1.len();
     }
     
     // 匹配宽高比, 如 16:9, 9:16, 1:1, 4:3, 3:4, 2:3, 3:2
@@ -1268,8 +1297,7 @@ fn extract_fenced_prompt_entries(content: &str) -> Vec<TempEntry> {
             let code = &block_content[first_line.len()..];
             
             // 往前半段文本获取 label
-            let before_len = start_fence.min(600);
-            let before = &text[start_fence - before_len .. start_fence];
+            let before = slice_before_char_boundary(&text, start_fence, 600);
             let label = find_prompt_label(before);
             
             let is_text_lang = lang.is_empty() || lang == "text" || lang == "txt" || lang == "md" || lang == "markdown" || lang == "json";
@@ -1621,15 +1649,16 @@ fn parse_markdown_document(source: &SourceConfig, repo_path: &str, markdown: &st
 
 // --- 缓存网络与数据抓取逻辑 ---
 
-fn cache_paths(cache_dir: &Path, source_id: &str, repo_path: &str) -> (PathBuf, PathBuf) {
-    let key = hash_string(&format!("{}:{}", source_id, repo_path));
-    let dir = cache_dir.join(source_id);
+fn cache_paths(cache_dir: &Path, source: &SourceConfig, repo_path: &str) -> (PathBuf, PathBuf) {
+    let key = hash_string(&format!("{}@{}:{}", source.repo, source.branch, repo_path));
+    let dir = cache_dir.join(source.id);
     let body_path = dir.join(format!("{}.md", key));
     let meta_path = dir.join(format!("{}.json", key));
     (body_path, meta_path)
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CacheMeta {
     repo_path: String,
     url: String,
@@ -1637,39 +1666,20 @@ struct CacheMeta {
     source_id: String,
 }
 
-// 缓存过期时间设置为 6 小时（以毫秒为单位 == 21,600,000）
-const CACHE_TTL_SECS: u64 = 6 * 60 * 60; 
-
 async fn read_markdown_with_cache(
     cache_dir: &Path,
     source: &SourceConfig,
     repo_path: &str,
     force_refresh: bool
 ) -> Result<(String, Option<String>), String> {
-    let (body_path, meta_path) = cache_paths(cache_dir, source.id, repo_path);
+    let (body_path, meta_path) = cache_paths(cache_dir, source, repo_path);
     let has_body = body_path.exists();
-    
-    let mut fetched_at = None;
-    let mut cache_fresh = false;
-    
-    if meta_path.exists() {
-        if let Ok(meta_content) = fs::read_to_string(&meta_path) {
-            if let Ok(meta) = serde_json::from_str::<CacheMeta>(&meta_content) {
-                fetched_at = Some(meta.fetched_at.clone());
-                if let Ok(parsed_time) = chrono::DateTime::parse_from_rfc3339(&meta.fetched_at).map(|dt| dt.with_timezone(&chrono::Utc)) {
-                    let now = chrono::Utc::now();
-                    let age = now.signed_duration_since(parsed_time).num_seconds();
-                    if age >= 0 && age < CACHE_TTL_SECS as i64 {
-                        cache_fresh = true;
-                    }
-                }
-            }
+
+    // 普通启动优先返回本地缓存，避免首屏被 GitHub 网络请求阻塞。
+    if !force_refresh && has_body {
+        if let Ok(markdown) = fs::read_to_string(&body_path) {
+            return Ok((markdown, None));
         }
-    }
-    
-    if !force_refresh && has_body && cache_fresh {
-        let markdown = fs::read_to_string(&body_path).map_err(|e| e.to_string())?;
-        return Ok((markdown, None));
     }
     
     // 从 GitHub 获取最新内容
@@ -1677,6 +1687,7 @@ async fn read_markdown_with_cache(
     
     let client = reqwest::Client::builder()
         .user_agent("Prompt-Library-Viewer/0.2 (Tauri)")
+        .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| e.to_string())?;
         
@@ -1734,6 +1745,16 @@ pub async fn load_and_parse_prompts(cache_dir: PathBuf, force_refresh: bool) -> 
     
     // 初始化本地缓存总文件夹
     let _ = fs::create_dir_all(&cache_dir);
+    let response_cache_path = cache_dir.join("api-response.json");
+
+    // 普通启动优先读取解析后的快照，避免每次重新解析全部 Markdown。
+    if !force_refresh {
+        if let Ok(cache_content) = fs::read_to_string(&response_cache_path) {
+            if let Ok(response) = serde_json::from_str::<ApiResponse>(&cache_content) {
+                return Ok(response);
+            }
+        }
+    }
     
     for source in SOURCES {
         let mut queue = Vec::new();
@@ -1827,11 +1848,17 @@ pub async fn load_and_parse_prompts(cache_dir: PathBuf, force_refresh: bool) -> 
     
     let now_str = chrono::Utc::now().to_rfc3339();
     
-    Ok(ApiResponse {
+    let response = ApiResponse {
         items: all_items,
         sources: all_sources,
         categories,
         errors: all_errors,
         updatedAt: now_str,
-    })
+    };
+
+    if let Ok(cache_content) = serde_json::to_string(&response) {
+        let _ = fs::write(response_cache_path, cache_content);
+    }
+
+    Ok(response)
 }
