@@ -22,6 +22,8 @@ async function createMainWindow() {
   const { startServer } = require("../server");
   promptServer = await startServer(0, { log: false });
 
+  const isMac = process.platform === "darwin";
+
   mainWindow = new BrowserWindow({
     width: 1720,
     height: 1120,
@@ -30,6 +32,12 @@ async function createMainWindow() {
     show: false,
     backgroundColor: "#f6f5f1",
     title: "Prompt Library Viewer",
+    titleBarStyle: "hidden",
+    titleBarOverlay: isMac ? false : {
+      color: "#f6f5f1",
+      symbolColor: "#202124",
+      height: 38
+    },
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

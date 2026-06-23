@@ -34,7 +34,8 @@
     ],
     "win": {
       "target": [
-        "dir"
+        "dir",
+        "portable"
       ]
     }
   }

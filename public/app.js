@@ -391,4 +391,13 @@ elements.dialog.addEventListener("click", (event) => {
   }
 });
 
+// 检测 Electron 环境并标记 body 样式类
+const userAgent = navigator.userAgent.toLowerCase();
+if (userAgent.includes("electron")) {
+  document.body.classList.add("is-electron");
+  if (userAgent.includes("macintosh") || userAgent.includes("mac os x")) {
+    document.body.classList.add("is-mac");
+  }
+}
+
 loadPrompts();

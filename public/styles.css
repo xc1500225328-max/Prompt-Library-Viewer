@@ -515,3 +515,38 @@ select {
     grid-template-columns: 1fr;
   }
 }
+
+/* Electron App Custom Titlebar Styles */
+.is-electron {
+  --titlebar-height: 38px;
+}
+
+.electron-drag-bar {
+  display: none;
+}
+
+.is-electron .electron-drag-bar {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--titlebar-height);
+  background: rgba(246, 245, 241, 0.85); /* 半透明米色背景 */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05); /* 极细微的分割线 */
+  -webkit-app-region: drag; /* 支持拖拽窗口 */
+  z-index: 9999;
+}
+
+/* 在 Electron 模式下让主容器整体下移，避免被顶部的系统按钮遮挡 */
+.is-electron .app-shell {
+  padding-top: calc(12px + var(--titlebar-height));
+}
+
+/* macOS 额外适配：使 macOS 的顶栏在 Electron 下稍微向右偏移，避免与交通灯在视觉上过于拥挤 */
+.is-electron.is-mac .topbar {
+  padding-left: 64px;
+}
+
