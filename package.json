@@ -1,0 +1,41 @@
+{
+  "name": "prompt-library-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "本地提示词库浏览器，抓取 GitHub Markdown 并整理为统一卡片。",
+  "main": "electron/main.cjs",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "desktop": "electron .",
+    "refresh": "node server.js --refresh-cache",
+    "check": "node --check server.js && node --check public/app.js && node --check electron/main.cjs",
+    "build:portable": "electron-builder --win --x64 --dir"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.xc1500225328.promptlibraryviewer",
+    "productName": "Prompt Library Viewer",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "server.js",
+      "public/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "dir"
+      ]
+    }
+  }
+}

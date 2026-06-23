@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prompt Library Viewer</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>Prompt Library Viewer</h1>
+          <p id="statusText">正在载入提示词库...</p>
+        </div>
+        <div class="topbar-actions">
+          <button class="button button-secondary" id="refreshButton" type="button">刷新缓存</button>
+          <button class="button" id="clearButton" type="button">清空筛选</button>
+        </div>
+      </header>
+
+      <section class="toolbar" aria-label="筛选">
+        <label class="search-box">
+          <span>搜索</span>
+          <input id="searchInput" type="search" placeholder="标题、分类、prompt" autocomplete="off" />
+        </label>
+        <label class="select-box">
+          <span>来源</span>
+          <select id="sourceSelect">
+            <option value="">全部来源</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="category-strip" id="categoryStrip" aria-label="分类"></section>
+
+      <main class="content">
+        <section class="summary-grid" id="summaryGrid" aria-label="统计"></section>
+        <section class="notice" id="notice" hidden></section>
+        <section class="cards-grid" id="cardsGrid" aria-live="polite"></section>
+        <section class="empty-state" id="emptyState" hidden>
+          <h2>没有匹配结果</h2>
+          <p>换一个关键词或分类。</p>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="prompt-dialog" id="promptDialog">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow" id="dialogMeta"></p>
+          <h2 id="dialogTitle"></h2>
+        </div>
+        <button class="icon-button" id="dialogClose" type="button" aria-label="关闭">×</button>
+      </div>
+      <div class="dialog-body">
+        <img id="dialogImage" alt="" />
+        <pre id="dialogPrompt"></pre>
+      </div>
+      <div class="dialog-actions">
+        <a class="button button-secondary" id="dialogSource" target="_blank" rel="noreferrer">来源</a>
+        <button class="button" id="dialogCopy" type="button">复制 prompt</button>
+      </div>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>
