@@ -10,12 +10,14 @@
     "desktop": "electron .",
     "refresh": "node server.js --refresh-cache",
     "check": "node --check server.js && node --check public/app.js && node --check electron/main.cjs",
-    "build:portable": "electron-builder --win --x64"
+    "build:portable": "electron-builder --win --x64",
+    "tauri": "tauri"
   },
   "engines": {
     "node": ">=18"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0",
     "electron": "^42.4.1",
     "electron-builder": "^26.15.3"
   },

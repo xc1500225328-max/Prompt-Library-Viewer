@@ -331,12 +331,16 @@ function render() {
 async function loadPrompts({ refresh = false } = {}) {
   elements.refreshButton.disabled = true;
   elements.statusText.textContent = refresh ? "正在刷新 GitHub Markdown..." : "正在载入提示词库...";
-  try {
-    const response = await fetch(`/api/prompts${refresh ? "?refresh=1" : ""}`);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    let data;
+    if (typeof window.__TAURI__ !== "undefined") {
+      data = await window.__TAURI__.core.invoke("get_prompts", { refresh });
+    } else {
+      const response = await fetch(`/api/prompts${refresh ? "?refresh=1" : ""}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      data = await response.json();
     }
-    const data = await response.json();
     state.items = data.items || [];
     state.sources = data.sources || [];
     state.categories = data.categories || [];
@@ -391,13 +395,35 @@ elements.dialog.addEventListener("click", (event) => {
   }
 });
 
-// 检测 Electron 环境并标记 body 样式类
+// 检测运行环境并标记 body 样式类
 const userAgent = navigator.userAgent.toLowerCase();
-if (userAgent.includes("electron")) {
+const isTauri = typeof window.__TAURI__ !== "undefined";
+const isElectron = userAgent.includes("electron");
+
+if (isElectron) {
   document.body.classList.add("is-electron");
-  if (userAgent.includes("macintosh") || userAgent.includes("mac os x")) {
-    document.body.classList.add("is-mac");
-  }
+} else if (isTauri) {
+  document.body.classList.add("is-tauri");
+}
+
+if (userAgent.includes("macintosh") || userAgent.includes("mac os x")) {
+  document.body.classList.add("is-mac");
+}
+
+// 如果在 Tauri 环境中，绑定自定义窗口控制事件
+if (isTauri) {
+  const { getCurrentWindow } = window.__TAURI__.window;
+  const appWindow = getCurrentWindow();
+  
+  document.querySelector("#winMinimize")?.addEventListener("click", () => {
+    appWindow.minimize();
+  });
+  document.querySelector("#winMaximize")?.addEventListener("click", () => {
+    appWindow.toggleMaximize();
+  });
+  document.querySelector("#winClose")?.addEventListener("click", () => {
+    appWindow.close();
+  });
 }
 
 loadPrompts();

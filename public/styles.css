@@ -516,17 +516,25 @@ select {
   }
 }
 
-/* Electron App Custom Titlebar Styles */
-.is-electron {
+/* Custom Window Titlebar Styles for Desktop Platforms */
+:root {
+  --titlebar-height: 0px;
+}
+
+.is-electron,
+.is-tauri {
   --titlebar-height: 38px;
 }
 
-.electron-drag-bar {
+.window-titlebar {
   display: none;
 }
 
-.is-electron .electron-drag-bar {
-  display: block;
+.is-electron .window-titlebar,
+.is-tauri .window-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   position: fixed;
   top: 0;
   left: 0;
@@ -536,16 +544,82 @@ select {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(0, 0, 0, 0.05); /* 极细微的分割线 */
-  -webkit-app-region: drag; /* 支持拖拽窗口 */
   z-index: 9999;
+  padding: 0 12px;
+  user-select: none;
 }
 
-/* 在 Electron 模式下让主容器整体下移，避免被顶部的系统按钮遮挡 */
-.is-electron .app-shell {
+/* 仅在 Electron 环境下，拖拽区由 Electron 自己控制 */
+.is-electron .window-titlebar {
+  -webkit-app-region: drag;
+}
+
+/* 标题样式 */
+.window-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.is-electron .window-title {
+  pointer-events: none;
+}
+
+/* 窗口控制按钮组 */
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.is-electron .window-controls {
+  display: none; /* Electron 自带了系统原生控制按钮，故不需要手画 */
+}
+
+.is-electron .window-controls,
+.is-tauri .window-controls {
+  -webkit-app-region: no-drag; /* 按钮区域不可拖拽，以保证点击生效 */
+}
+
+/* 个性化极简按钮 */
+.window-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+  user-select: none;
+}
+
+.window-control-btn:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.window-control-btn.close:hover {
+  background-color: #e81123;
+  color: white;
+}
+
+/* 在桌面模式下让内容整体下移，避免被顶部的系统按钮或拖拽栏遮挡 */
+.is-electron .app-shell,
+.is-tauri .app-shell {
   padding-top: calc(12px + var(--titlebar-height));
 }
 
-/* macOS 额外适配：使 macOS 的顶栏在 Electron 下稍微向右偏移，避免与交通灯在视觉上过于拥挤 */
+/* macOS 额外适配：使 macOS 控件移到左边 */
+.is-mac .window-titlebar {
+  flex-direction: row-reverse;
+}
+
 .is-electron.is-mac .topbar {
   padding-left: 64px;
 }
