@@ -10,7 +10,7 @@
     "desktop": "electron .",
     "refresh": "node server.js --refresh-cache",
     "check": "node --check server.js && node --check public/app.js && node --check electron/main.cjs",
-    "build:portable": "electron-builder --win --x64 --dir"
+    "build:portable": "electron-builder --win --x64"
   },
   "engines": {
     "node": ">=18"
